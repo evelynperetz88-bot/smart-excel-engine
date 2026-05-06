@@ -57,11 +57,27 @@ def is_available() -> bool:
     return gs_path() is not None
 
 
-def to_pdfa(pdf_bytes: bytes, *, level: str = "1") -> tuple[bytes, str, str, str]:
+def _build_cmd(gs: str, level: str, in_path: Path, out_path: Path) -> list[str]:
+    return [
+        gs,
+        f"-dPDFA={level}",
+        "-dBATCH", "-dNOPAUSE",
+        "-sColorConversionStrategy=UseDeviceIndependentColor",
+        "-sDEVICE=pdfwrite",
+        "-dPDFACompatibilityPolicy=1",
+        "-dCompatibilityLevel=1.7",
+        "-dDetectDuplicateImages=true",
+        f"-sOutputFile={out_path}",
+        str(in_path),
+    ]
+
+
+def to_pdfa(pdf_bytes: bytes, *, level: str = "2") -> tuple[bytes, str, str, str]:
     """Run Ghostscript to produce PDF/A-{level}b output.
 
-    Returns (output_bytes, status, message_he, message_en).
-    On any failure path returns the input bytes unchanged with status='best_effort' or 'failed'.
+    Defaults to PDF/A-2b because ReportLab's transparency (used for watermarks
+    via setFillAlpha) is forbidden in PDF/A-1b but allowed in PDF/A-2.
+    Falls back to PDF/A-1b if level=2 fails.
     """
     if not pdf_bytes or pdf_bytes[:4] != b"%PDF":
         return pdf_bytes, "failed", "קלט לא תקין: לא נמצא PDF.", "Invalid input: not a PDF."
@@ -75,56 +91,34 @@ def to_pdfa(pdf_bytes: bytes, *, level: str = "1") -> tuple[bytes, str, str, str
             "PDF/A best-effort only — Ghostscript not found. Install gs for full conformance.",
         )
 
-    with tempfile.TemporaryDirectory(prefix="pdfa_") as td:
-        in_path = Path(td) / "in.pdf"
-        out_path = Path(td) / "out.pdf"
-        in_path.write_bytes(pdf_bytes)
+    last_err = ""
+    # Try PDF/A-2b first, then PDF/A-1b
+    levels_to_try = [level] if level != "2" else ["2", "1"]
+    for try_level in levels_to_try:
+        with tempfile.TemporaryDirectory(prefix="pdfa_") as td:
+            in_path = Path(td) / "in.pdf"
+            out_path = Path(td) / "out.pdf"
+            in_path.write_bytes(pdf_bytes)
+            cmd = _build_cmd(gs, try_level, in_path, out_path)
+            try:
+                proc = subprocess.run(cmd, capture_output=True, timeout=60)
+            except subprocess.TimeoutExpired:
+                return pdf_bytes, "failed", "המרת PDF/A פגה (timeout).", "PDF/A conversion timed out."
+            except Exception as e:
+                return pdf_bytes, "failed", f"שגיאת ההמרה: {e}", f"Conversion error: {e}"
 
-        cmd = [
-            gs,
-            f"-dPDFA={level}",
-            "-dBATCH", "-dNOPAUSE", "-dQUIET",
-            "-sColorConversionStrategy=RGB",
-            "-sProcessColorModel=DeviceRGB",
-            "-sDEVICE=pdfwrite",
-            "-sPDFACompatibilityPolicy=1",
-            "-dCompatibilityLevel=1.4",
-            "-dPDFSETTINGS=/prepress",
-            f"-sOutputFile={out_path}",
-            str(in_path),
-        ]
-        try:
-            proc = subprocess.run(cmd, capture_output=True, timeout=60)
-        except subprocess.TimeoutExpired:
-            return (
-                pdf_bytes, "failed",
-                "המרת PDF/A פגה (timeout).",
-                "PDF/A conversion timed out.",
-            )
-        except Exception as e:
-            return (
-                pdf_bytes, "failed",
-                f"שגיאת ההמרה: {e}",
-                f"Conversion error: {e}",
-            )
+            if proc.returncode == 0 and out_path.exists():
+                out_bytes = out_path.read_bytes()
+                if out_bytes[:4] == b"%PDF":
+                    return (
+                        out_bytes, "verified",
+                        f"המסמך עומד בתקן PDF/A-{try_level}b (אומת ע\"י Ghostscript).",
+                        f"Document conforms to PDF/A-{try_level}b (verified by Ghostscript).",
+                    )
+            last_err = (proc.stderr or proc.stdout or b"").decode("utf-8", errors="replace")[:300]
 
-        if proc.returncode != 0 or not out_path.exists():
-            err = (proc.stderr or proc.stdout or b"").decode("utf-8", errors="replace")[:300]
-            return (
-                pdf_bytes, "failed",
-                f"Ghostscript נכשל. ייצואנו fallback רגיל. שגיאה: {err}",
-                f"Ghostscript failed; falling back to non-PDF/A output. Error: {err}",
-            )
-
-        out_bytes = out_path.read_bytes()
-        if out_bytes[:4] != b"%PDF":
-            return (
-                pdf_bytes, "failed",
-                "פלט Ghostscript אינו PDF תקני.",
-                "Ghostscript output is not a valid PDF.",
-            )
-        return (
-            out_bytes, "verified",
-            "המסמך עומד בתקן PDF/A-1b (אומת ע\"י Ghostscript).",
-            "Document conforms to PDF/A-1b (verified by Ghostscript).",
-        )
+    return (
+        pdf_bytes, "failed",
+        f"Ghostscript נכשל. ייצוא fallback רגיל. שגיאה: {last_err}",
+        f"Ghostscript failed; falling back to non-PDF/A output. Error: {last_err}",
+    )
