@@ -1,0 +1,16 @@
+{
+  "id": "clean",
+  "name_he": "מינימליסטי נקי",
+  "name_en": "Clean Minimal",
+  "description_he": "עיצוב מינימליסטי לטבלאות כלליות — שוליים נקיים, עמודה ראשונה בעדיפות גבוהה.",
+  "description_en": "Minimal styling for general tables — clean margins, first column gets priority.",
+  "page_size": "A4",
+  "orientation": "portrait",
+  "rtl": true,
+  "smart_layout": true,
+  "priority_keywords": {
+    "high": ["id", "מספר", "מס'", "שם", "name"],
+    "medium": [],
+    "low": ["הערה", "הערות", "notes", "comment", "comments", "description", "תיאור"]
+  }
+}

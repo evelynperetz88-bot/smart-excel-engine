@@ -1,0 +1,16 @@
+{
+  "id": "inventory",
+  "name_he": "דוח מלאי",
+  "name_en": "Inventory Report",
+  "description_he": "תבנית לדוחות מלאי: SKU וכמות בעדיפות גבוהה, מיקום בינונית, הערות נמוכה.",
+  "description_en": "Inventory: SKU and quantity high, location medium, notes low.",
+  "page_size": "A4",
+  "orientation": "landscape",
+  "rtl": true,
+  "smart_layout": true,
+  "priority_keywords": {
+    "high": ["sku", "barcode", "ברקוד", "שם פריט", "פריט", "item", "כמות", "quantity", "qty", "מחיר", "price"],
+    "medium": ["מיקום", "location", "מחסן", "warehouse", "ספק", "vendor", "קטגוריה", "category"],
+    "low": ["הערה", "הערות", "notes", "תיאור", "description", "details"]
+  }
+}

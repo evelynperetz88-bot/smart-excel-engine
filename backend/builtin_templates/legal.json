@@ -1,0 +1,16 @@
+{
+  "id": "legal",
+  "name_he": "דוח משפטי",
+  "name_en": "Legal Report",
+  "description_he": "תבנית מקצועית למשרדי עורכי דין: מספר תיק וסטטוס בעדיפות גבוהה, הערות וחיווי בעדיפות נמוכה.",
+  "description_en": "Professional template for law firms: case number and status are high priority, remarks and details are low priority.",
+  "page_size": "A4",
+  "orientation": "portrait",
+  "rtl": true,
+  "smart_layout": true,
+  "priority_keywords": {
+    "high": ["תיק", "מס' תיק", "מספר תיק", "case", "תאריך פתיחה", "תאריך", "date", "סטטוס", "status", "ערכאה", "court", "בית משפט", "תובע", "נתבע", "plaintiff", "defendant", "לקוח", "client"],
+    "medium": ["סוג ההליך", "type", "אחראי", "עו\"ד", "advocate", "attorney", "סכום", "amount"],
+    "low": ["הערה", "הערות", "notes", "comment", "comments", "תיאור", "description", "remarks"]
+  }
+}

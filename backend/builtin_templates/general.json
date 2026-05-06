@@ -1,0 +1,16 @@
+{
+  "id": "general",
+  "name_he": "טבלה כללית",
+  "name_en": "General Table",
+  "description_he": "תבנית גנרית: זיהוי אוטומטי של חשיבות עמודות לפי הירוסטיקה.",
+  "description_en": "Generic table: column importance auto-detected by heuristics.",
+  "page_size": "A4",
+  "orientation": "portrait",
+  "rtl": true,
+  "smart_layout": true,
+  "priority_keywords": {
+    "high": ["id", "מספר", "מס'", "שם", "name", "תאריך", "date"],
+    "medium": [],
+    "low": ["הערה", "הערות", "notes", "comment", "description", "תיאור"]
+  }
+}

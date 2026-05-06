@@ -1,0 +1,31 @@
+# Render Blueprint — one-click deploy of the backend.
+# Usage: push this repo to GitHub, then go to render.com → New → Blueprint → connect repo.
+# Render will read this file, build the Docker image, and start the service.
+#
+# After first deploy, set CORS_ORIGINS to your actual Vercel URL via Render's env-var UI.
+
+services:
+  - type: web
+    name: smart-excel-engine
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free                           # Free tier (sleeps after 15 min idle, ~30s cold start)
+    region: oregon                       # Closest to most CDNs
+    healthCheckPath: /api/health
+    autoDeploy: true                     # Auto-deploy on git push to main
+    envVars:
+      - key: PYTHONIOENCODING
+        value: utf-8
+      - key: STORAGE_DIR
+        value: /tmp/sxe-storage          # Ephemeral on free tier
+      - key: CORS_ORIGINS
+        value: "*"                       # Tighten to https://YOUR-APP.vercel.app after first deploy
+      - key: PORT
+        value: "10000"
+    # ─── Persistent disk (uncomment + upgrade to Starter plan, ~$1/month) ───
+    # disk:
+    #   name: sxe-storage
+    #   mountPath: /var/data
+    #   sizeGB: 1
+    # When the disk is enabled, also change STORAGE_DIR above to /var/data.

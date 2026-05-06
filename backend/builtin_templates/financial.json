@@ -1,0 +1,16 @@
+{
+  "id": "financial",
+  "name_he": "דוח כספי",
+  "name_en": "Financial Report",
+  "description_he": "תבנית לדוחות כספיים: עמודות סכומים בעדיפות גבוהה, הערות בעדיפות נמוכה.",
+  "description_en": "Financial reports: amounts and totals are high priority, notes are low priority.",
+  "page_size": "A4",
+  "orientation": "portrait",
+  "rtl": true,
+  "smart_layout": true,
+  "priority_keywords": {
+    "high": ["סכום", "amount", "total", "סה\"כ", "מס", "id", "תאריך", "date", "מספר חשבונית", "invoice"],
+    "medium": ["שם", "name", "סטטוס", "status", "ספק", "vendor", "לקוח", "client"],
+    "low": ["הערה", "הערות", "notes", "comment", "comments", "תיאור", "description"]
+  }
+}
