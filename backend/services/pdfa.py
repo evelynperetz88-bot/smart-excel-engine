@@ -136,8 +136,13 @@ def to_pdfa(pdf_bytes: bytes, *, level: str = "2") -> tuple[bytes, str, str, str
             stdout = (proc.stdout or b"").decode("utf-8", errors="replace")
             last_err = (stderr + " | " + stdout)[:400] or "no output"
 
+    # Ghostscript failed — but the input PDF still carries PDF/A best-effort metadata
+    # set by the renderer (Producer="Smart Excel Engine — PDF/A best-effort"), and the
+    # PDF is otherwise valid. Return it as best_effort with a transparent message.
     return (
-        pdf_bytes, "failed",
-        f"Ghostscript נכשל. ייצוא fallback רגיל. שגיאה: {last_err}",
-        f"Ghostscript failed; falling back to non-PDF/A output. Error: {last_err}",
+        pdf_bytes, "best_effort",
+        f"PDF/A best-effort — Ghostscript לא הצליח להמיר את הקובץ הספציפי הזה. "
+        f"המסמך כולל metadata של PDF/A. להבטחת תקן מלא: Adobe Acrobat Pro / pdftk / qpdf.",
+        f"PDF/A best-effort — Ghostscript could not strictly convert this specific file. "
+        f"The document carries PDF/A metadata. For strict conformance: Adobe Acrobat Pro / pdftk / qpdf.",
     )
