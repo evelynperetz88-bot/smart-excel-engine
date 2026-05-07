@@ -1,5 +1,6 @@
 from __future__ import annotations
 import uuid
+from io import BytesIO
 from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
@@ -10,6 +11,49 @@ from services.ocr import ocr_pdf_to_xlsx, is_available as ocr_available
 ALLOWED_EXTS = {".xlsx", ".xls", ".xlsm"}
 PDF_EXTS = {".pdf"}
 MAX_BYTES = 50 * 1024 * 1024
+
+
+def _convert_xls_to_xlsx(xls_bytes: bytes) -> bytes:
+    """Convert legacy Excel 97-2003 (.xls) to modern .xlsx using xlrd + openpyxl.
+    Loses native formatting; preserves cell values, sheet names, and structure —
+    which is exactly what our analyzer/exporter needs.
+    """
+    import xlrd
+    from openpyxl import Workbook
+
+    book = xlrd.open_workbook(file_contents=xls_bytes)
+    wb = Workbook()
+    # Remove the default sheet that openpyxl creates
+    if wb.active and wb.active.title in wb.sheetnames:
+        wb.remove(wb.active)
+
+    for sheet_name in book.sheet_names():
+        src = book.sheet_by_name(sheet_name)
+        # openpyxl limits sheet titles to 31 chars
+        title = (sheet_name or "Sheet")[:31] or "Sheet"
+        ws = wb.create_sheet(title)
+        for r in range(src.nrows):
+            for c in range(src.ncols):
+                v = src.cell_value(r, c)
+                # xlrd returns 0.0 for empty numeric cells; keep them as-is
+                ws.cell(row=r + 1, column=c + 1, value=v)
+        # Carry over merged ranges
+        for mr in getattr(src, "merged_cells", []):
+            rlo, rhi, clo, chi = mr
+            try:
+                ws.merge_cells(
+                    start_row=rlo + 1, end_row=rhi,
+                    start_column=clo + 1, end_column=chi,
+                )
+            except Exception:
+                pass
+
+    if not wb.sheetnames:
+        wb.create_sheet("Sheet1")
+
+    out = BytesIO()
+    wb.save(out)
+    return out.getvalue()
 
 
 def make_router(storage: Path) -> APIRouter:
@@ -26,6 +70,7 @@ def make_router(storage: Path) -> APIRouter:
             raise HTTPException(413, "הקובץ חורג מ-50MB")
 
         ocr_used = False
+        converted_from_xls = False
         if suffix in PDF_EXTS:
             xlsx_bytes, err = ocr_pdf_to_xlsx(content)
             if err or not xlsx_bytes:
@@ -33,6 +78,15 @@ def make_router(storage: Path) -> APIRouter:
             content = xlsx_bytes
             suffix = ".xlsx"
             ocr_used = True
+        elif suffix == ".xls":
+            # Legacy Excel 97-2003 — convert to .xlsx in memory so the rest of the
+            # pipeline (openpyxl-based) can handle it normally.
+            try:
+                content = _convert_xls_to_xlsx(content)
+            except Exception as e:
+                raise HTTPException(400, f"לא ניתן להמיר קובץ .xls לפורמט המודרני: {e}")
+            suffix = ".xlsx"
+            converted_from_xls = True
         elif suffix not in ALLOWED_EXTS:
             raise HTTPException(400, f"סיומת לא נתמכת: {suffix}. נתמך: {sorted(ALLOWED_EXTS | PDF_EXTS)}")
 
@@ -51,6 +105,7 @@ def make_router(storage: Path) -> APIRouter:
             "filename": original_name,
             "size_bytes": len(content),
             "ocr_used": ocr_used,
+            "converted_from_xls": converted_from_xls,
             "analysis": analysis,
         }
 
