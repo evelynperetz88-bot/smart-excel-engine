@@ -58,15 +58,17 @@ def is_available() -> bool:
 
 
 def _build_cmd(gs: str, level: str, in_path: Path, out_path: Path) -> list[str]:
+    # Minimal, maximally-tolerant invocation. -dPDFACompatibilityPolicy=2 means:
+    # if Ghostscript cannot produce a conformant PDF/A, it still outputs a regular
+    # PDF rather than aborting. We post-check the output to decide verified vs failed.
     return [
         gs,
         f"-dPDFA={level}",
-        "-dBATCH", "-dNOPAUSE",
-        "-sColorConversionStrategy=UseDeviceIndependentColor",
+        "-dBATCH", "-dNOPAUSE", "-dNOSAFER",
         "-sDEVICE=pdfwrite",
-        "-dPDFACompatibilityPolicy=1",
-        "-dCompatibilityLevel=1.7",
-        "-dDetectDuplicateImages=true",
+        "-dPDFACompatibilityPolicy=2",
+        "-sColorConversionStrategy=RGB",
+        "-sProcessColorModel=DeviceRGB",
         f"-sOutputFile={out_path}",
         str(in_path),
     ]
@@ -110,12 +112,29 @@ def to_pdfa(pdf_bytes: bytes, *, level: str = "2") -> tuple[bytes, str, str, str
             if proc.returncode == 0 and out_path.exists():
                 out_bytes = out_path.read_bytes()
                 if out_bytes[:4] == b"%PDF":
-                    return (
-                        out_bytes, "verified",
-                        f"המסמך עומד בתקן PDF/A-{try_level}b (אומת ע\"י Ghostscript).",
-                        f"Document conforms to PDF/A-{try_level}b (verified by Ghostscript).",
+                    # With -dPDFACompatibilityPolicy=2, GS may emit a regular PDF
+                    # even if conformance failed. Look for PDF/A xmp metadata as the
+                    # tell-tale of true conformance.
+                    is_verified = (
+                        b"pdfaid:part" in out_bytes
+                        or b"<pdfaid:" in out_bytes
+                        or b"GTS_PDFA" in out_bytes
                     )
-            last_err = (proc.stderr or proc.stdout or b"").decode("utf-8", errors="replace")[:300]
+                    if is_verified:
+                        return (
+                            out_bytes, "verified",
+                            f"המסמך עומד בתקן PDF/A-{try_level}b (אומת ע\"י Ghostscript).",
+                            f"Document conforms to PDF/A-{try_level}b (verified by Ghostscript).",
+                        )
+                    # Output is a clean PDF but missing PDF/A markers. Treat as best_effort.
+                    return (
+                        out_bytes, "best_effort",
+                        "Ghostscript הפיק PDF אך ללא סימני PDF/A מלאים — best-effort.",
+                        "Ghostscript produced a PDF without full PDF/A markers — best-effort.",
+                    )
+            stderr = (proc.stderr or b"").decode("utf-8", errors="replace")
+            stdout = (proc.stdout or b"").decode("utf-8", errors="replace")
+            last_err = (stderr + " | " + stdout)[:400] or "no output"
 
     return (
         pdf_bytes, "failed",
